@@ -87,31 +87,32 @@ constexpr const size_t IO_BUF_SIZE = 32 * 1024 * 1024;
 typedef struct {
     int max_seq_len; // max sequence length, e.g. 1024
     int vocab_size; // vocab size, e.g. 50257
-    int padded_vocab_size; // padded to e.g. %128==0, 50304
+    int padded_vocab_size; // padded to e.g. %128==0, 50304 # TODO: What do these mean?
     int num_layers; // number of layers, e.g. 12
     int num_heads; // number of heads in attention, e.g. 12
-    int channels; // number of channels, e.g. 768
+    int channels; // number of channels, e.g. 768 # TODO: What are # channels?
+
 } GPT2Config;
 
 // the parameters of the model
 constexpr const int NUM_PARAMETER_TENSORS = 16;
 typedef struct {
-    floatX* wte; // (V, C)
-    floatX* wpe; // (maxT, C)
-    floatX* ln1w; // (L, C)
-    floatX* ln1b; // (L, C)
-    floatX* qkvw; // (L, 3*C, C)
-    floatX* qkvb; // (L, 3*C)
-    floatX* attprojw; // (L, C, C)
-    floatX* attprojb; // (L, C)
-    floatX* ln2w; // (L, C)
-    floatX* ln2b; // (L, C)
-    floatX* fcw; // (L, 4*C, C)
-    floatX* fcb; // (L, 4*C)
-    floatX* fcprojw; // (L, C, 4*C)
-    floatX* fcprojb; // (L, C)
-    floatX* lnfw; // (C)
-    floatX* lnfb; // (C)
+    floatX* wte; // (V, C) # weights for text encoding # TODO: CONFIRM: is V length of vocab and C the size of vector embeddings?
+    floatX* wpe; // (maxT, C) # weights for position encoding
+    floatX* ln1w; // (L, C) # layer norm 1 weights # TODO: what is L? is a weight matrix needed for norm??
+    floatX* ln1b; // (L, C) # layer norm1 biases
+    floatX* qkvw; // (L, 3*C, C) # k,q,v weights
+    floatX* qkvb; // (L, 3*C) # k,q,v biases
+    floatX* attprojw; // (L, C, C) # TODO: What do these signify?
+    floatX* attprojb; // (L, C) # TODO: What do these signify?
+    floatX* ln2w; // (L, C) # layer norm 2 weights
+    floatX* ln2b; // (L, C) # layer norm 2 biases
+    floatX* fcw; // (L, 4*C, C) # fully connected layer weights
+    floatX* fcb; // (L, 4*C) # fully connected network baises
+    floatX* fcprojw; // (L, C, 4*C) # TODO: What do these signify?
+    floatX* fcprojb; // (L, C) # TODO: What do these signify?
+    floatX* lnfw; // (C) # TODO: What do these signify? weights for layer norm of full connected? but how weights? normalization doesnt have weights?
+    floatX* lnfb; // (C) # layer norm biases??
 } ParameterTensors;
 static_assert(sizeof(ParameterTensors) == NUM_PARAMETER_TENSORS * sizeof(void*), "Inconsistent sizes!");
 
@@ -215,6 +216,7 @@ struct TensorSpec {
 
 
 #define TENSOR_SPEC(pointer, size) TensorSpec{(void**)(&pointer), (size), dtype_of(pointer)};
+# TODO: What is activation size? 
 
 void fill_in_activation_sizes(const ActivationTensors* data, TensorSpec (&tensors)[NUM_ACTIVATION_TENSORS], size_t B, size_t T, GPT2Config config, int recompute) {
     size_t Vp = config.padded_vocab_size;
@@ -906,7 +908,7 @@ void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int 
         // layernorm backward does += to the dresidual, so it correctly accumulates grad from the MLP block above
         layernorm_backward(dresidual, dl_ln2w, dl_ln2b, scratchF, dl_btc, l_residual2, l_ln2w, l_ln2_mean, l_ln2_rstd, B, T, C, main_stream);
         matmul_backward(dl_btc, dl_attprojw, dl_attprojb, dresidual, l_atty, l_attprojw, scratchF, B, T, C, C, main_stream);
-
+# TODO: Start here
         #ifdef ENABLE_CUDNN
         float* l_att = (float*)acts.att + l * B * NH * T; // cuDNN needs a smaller FP32 tensor
         attention_backward_cudnn(dl_bt4c, dl_btc, l_qkvr, l_atty, (float*)l_att, B, T, NH, C, main_stream);
